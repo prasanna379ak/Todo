@@ -23,11 +23,26 @@
     --shadow: rgba(26,22,16,0.12);
   }
 
+  [data-theme="dark"] {
+    --paper: #1e1c18;
+    --paper-dark: #171510;
+    --ink: #e8e0d0;
+    --ink-mid: #b0a890;
+    --ink-light: #706860;
+    --rule: #3a3528;
+    --accent: #c05050;
+    --accent-light: #e07070;
+    --done: #6a9a48;
+    --tag-bg: #2a2720;
+    --shadow: rgba(0,0,0,0.35);
+  }
+
   body {
     font-family: 'Lora', Georgia, serif;
     background: var(--paper-dark);
     color: var(--ink);
     min-height: 100vh;
+    transition: background 0.25s, color 0.25s;
     background-image: repeating-linear-gradient(
       0deg,
       transparent,
@@ -89,6 +104,26 @@
     transition: background 0.15s;
   }
   .btn-small:hover { background: rgba(255,255,255,0.1); }
+
+  /* theme toggle */
+  .theme-toggle {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--paper);
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'Lora', serif;
+    letter-spacing: 0.06em;
+  }
+  .theme-toggle:hover { background: rgba(255,255,255,0.1); }
+  .theme-toggle .toggle-icon { font-size: 0.9rem; transition: transform 0.3s; }
+  [data-theme="dark"] .theme-toggle .toggle-icon { transform: rotate(20deg); }
 
   /* ── LAYOUT ── */
   .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
@@ -494,6 +529,10 @@
     <span class="sync-status" id="syncStatus">Not configured</span>
     <button class="btn-small" onclick="openSettings()">&#9881; Sync Setup</button>
     <button class="btn-small" onclick="manualSync()">&#8635; Sync Now</button>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+      <span class="toggle-icon" id="themeIcon">&#9790;</span>
+      <span id="themeLabel">Dark</span>
+    </button>
   </div>
 </header>
 
@@ -631,11 +670,33 @@ function init() {
   if (saved) try { data = JSON.parse(saved); } catch(e) {}
   const s = localStorage.getItem('planner_settings');
   if (s) try { settings = JSON.parse(s); } catch(e) {}
+  // Restore theme
+  const theme = localStorage.getItem('planner_theme') || 'light';
+  applyTheme(theme);
   document.getElementById('datebar').textContent = new Date().toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'}).toUpperCase();
   renderAll();
   updateSyncStatus('local');
-  // Auto-sync on load if configured
   if (settings.token) pullSync();
+}
+
+// ── THEME ──
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const icon = document.getElementById('themeIcon');
+  const label = document.getElementById('themeLabel');
+  if (theme === 'dark') {
+    icon.textContent = '☀';
+    label.textContent = 'Light';
+  } else {
+    icon.textContent = '☾';
+    label.textContent = 'Dark';
+  }
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  localStorage.setItem('planner_theme', next);
 }
 
 // ── SAVE ──
