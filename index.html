@@ -374,6 +374,7 @@
     border: 1px solid var(--rule);
     border-radius: 3px;
     box-shadow: 2px 3px 8px var(--shadow);
+    overflow: hidden;
   }
   .project-card-header {
     display: flex;
@@ -414,25 +415,119 @@
     font-style: italic;
   }
 
-  /* new project form */
-  .new-project-form {
+  /* ── PROJECT COLOR CUSTOMIZATION ── */
+  .color-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--rule);
+    transition: transform 0.2s;
+  }
+  .color-indicator:hover { transform: scale(1.15); }
+
+  /* Collapsible sections in projects */
+  .proj-subsection {
+    border-bottom: 1px solid var(--rule);
+  }
+  .proj-subsection:last-child {
+    border-bottom: none;
+  }
+  .proj-subsection-header {
     display: flex;
-    gap: 8px;
-    padding: 14px 0 20px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px 6px;
+    gap: 6px;
+    flex-wrap: wrap;
+    cursor: pointer;
+    user-select: none;
+    background: var(--paper-dark);
+    transition: background 0.15s;
+  }
+  .proj-subsection-header:hover {
+    background: var(--paper);
+  }
+  .proj-subsection-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .collapse-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    font-size: 0.9rem;
+    transition: transform 0.3s;
+    color: var(--ink-mid);
+  }
+  .collapse-toggle.collapsed {
+    transform: rotate(-90deg);
+  }
+  .proj-subsection-content {
+    max-height: 1000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+  }
+  .proj-subsection-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+  }
+  .proj-subsection-controls {
+    display: flex;
+    gap: 4px;
     flex-wrap: wrap;
   }
-  .new-project-form input {
+  .proj-subsection-input-group {
+    display: flex;
+    gap: 6px;
+    padding: 0 14px 8px;
+    flex-wrap: wrap;
+  }
+  .proj-subsection-input-group input {
+    flex: 1;
+    min-width: 120px;
     font-family: 'Lora', serif;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     background: var(--paper);
     border: 1px solid var(--rule);
-    padding: 6px 10px;
+    padding: 5px 8px;
     color: var(--ink);
     border-radius: 2px;
-    flex: 1; min-width: 180px;
     outline: none;
   }
-  .new-project-form input:focus { border-color: var(--ink-mid); }
+  .proj-subsection-input-group input:focus {
+    border-color: var(--ink-mid);
+  }
+  .proj-subsection-input-group select {
+    font-family: 'Lora', serif;
+    font-size: 0.78rem;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    padding: 4px 6px;
+    color: var(--ink);
+    border-radius: 2px;
+  }
+  .proj-subsection-input-group .btn-add {
+    font-size: 0.75rem;
+    padding: 5px 12px;
+  }
+  .proj-subsection-list {
+    list-style: none;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .proj-subsection-list .item {
+    padding: 7px 14px;
+  }
 
   /* ── MODAL ── */
   .modal-overlay {
@@ -453,6 +548,8 @@
     max-width: 500px;
     width: 100%;
     box-shadow: 4px 6px 20px var(--shadow);
+    max-height: 90vh;
+    overflow-y: auto;
   }
   .modal h2 {
     font-family: 'Playfair Display', serif;
@@ -511,12 +608,38 @@
   .step { margin-bottom: 8px; font-size: 0.83rem; }
   .step strong { color: var(--ink); }
 
+  /* Color picker grid */
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin: 12px 0;
+  }
+  .color-option {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: all 0.2s;
+  }
+  .color-option:hover {
+    transform: scale(1.1);
+  }
+  .color-option.selected {
+    border-color: var(--ink);
+    box-shadow: 0 0 8px var(--shadow);
+  }
+
   /* ── RESPONSIVE ── */
   @media (max-width: 600px) {
     .add-form input.date-input { width: 120px; }
     .projects-grid { grid-template-columns: 1fr; }
     .tabs { gap: 0; }
     .tab-btn { padding: 8px 12px; font-size: 0.8rem; }
+    .proj-subsection-list {
+      max-height: 300px;
+    }
   }
 </style>
 </head>
@@ -645,6 +768,8 @@
   <div class="modal">
     <h2>&#128190; New Project</h2>
     <input type="text" id="newProjectName" placeholder="Project name..." onkeydown="if(event.key==='Enter')createProject()">
+    <p style="font-size: 0.8rem; color: var(--ink-light); margin-bottom: 14px;">Choose a color for this project:</p>
+    <div class="color-grid" id="colorGrid"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeNewProjectModal()">Cancel</button>
       <button class="btn-primary" onclick="createProject()">Create</button>
@@ -652,17 +777,48 @@
   </div>
 </div>
 
+<!-- ── PROJECT COLOR EDIT MODAL ── -->
+<div class="modal-overlay" id="projectColorModal">
+  <div class="modal">
+    <h2>&#128190; Project Color</h2>
+    <p style="font-size: 0.8rem; color: var(--ink-light); margin-bottom: 14px;">Select a color for this project:</p>
+    <div class="color-grid" id="projectColorGrid"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeProjectColorModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveProjectColor()">Apply</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ── PREDEFINED COLORS FOR PROJECTS ──
+const COLORS = [
+  { name: 'Red', bg: '#ff6b6b', border: '#ee5a5a', progress: '#c92a2a' },
+  { name: 'Orange', bg: '#ffa94d', border: '#ff922b', progress: '#f76707' },
+  { name: 'Green', bg: '#69db7c', border: '#51cf66', progress: '#2f9e44' },
+  { name: 'Blue', bg: '#74c0fc', border: '#4dabf7', progress: '#1971c2' },
+  { name: 'Purple', bg: '#b197fc', border: '#a78bfa', progress: '#7c3aed' },
+  { name: 'Pink', bg: '#f783ac', border: '#f06595', progress: '#d6336c' },
+  { name: 'Teal', bg: '#63e9b6', border: '#38d9a9', progress: '#12b886' },
+  { name: 'Gray', bg: '#adb5bd', border: '#909296', progress: '#495057' },
+  { name: 'Indigo', bg: '#748ffc', border: '#5c7cfa', progress: '#3b5bdb' },
+  { name: 'Cyan', bg: '#66d9ef', border: '#22b8cf', progress: '#0891b2' },
+  { name: 'Lime', bg: '#d3f9d8', border: '#b2f2bb', progress: '#51cf66' },
+  { name: 'Grape', bg: '#da77f2', border: '#d969ff', progress: '#be123c' }
+];
+
 // ── STATE ──
 let data = {
   daily: [],
   weekly: [],
-  projects: []   // [{id, name, goals:[], todos:[]}]
+  projects: []   // [{id, name, goals:[], todos:[], color: colorIndex}]
 };
 let filters = { daily: 'all', weekly: 'all' };
 let projectFilters = {};  // {projectId: {goals:'all', todos:'all'}}
 let settings = { token: '', gistId: '' };
 let syncTimer = null;
+let currentProjectColorEdit = null;
+let selectedColorIndex = 0;
 
 // ── INIT ──
 function init() {
@@ -674,9 +830,31 @@ function init() {
   const theme = localStorage.getItem('planner_theme') || 'light';
   applyTheme(theme);
   document.getElementById('datebar').textContent = new Date().toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'}).toUpperCase();
+  renderColorGrids();
   renderAll();
   updateSyncStatus('local');
   if (settings.token) pullSync();
+}
+
+// ── RENDER COLOR GRIDS ──
+function renderColorGrids() {
+  const grids = ['colorGrid', 'projectColorGrid'];
+  grids.forEach(gridId => {
+    const grid = document.getElementById(gridId);
+    if (grid) {
+      grid.innerHTML = COLORS.map((color, idx) => 
+        `<div class="color-option${idx === selectedColorIndex ? ' selected' : ''}" 
+              style="background: ${color.bg};" 
+              title="${color.name}"
+              onclick="selectColor(${idx})"></div>`
+      ).join('');
+    }
+  });
+}
+
+function selectColor(idx) {
+  selectedColorIndex = idx;
+  renderColorGrids();
 }
 
 // ── THEME ──
@@ -823,6 +1001,9 @@ function projectCardHTML(p) {
   const total = totalGoals + totalTodos, done = doneGoals + doneTodos;
   const pct = total ? Math.round(done/total*100) : 0;
 
+  const colorIdx = p.color !== undefined ? p.color : 0;
+  const color = COLORS[colorIdx];
+
   let goals = p.goals;
   if (pf.goals === 'active') goals = goals.filter(i=>!i.done);
   else if (pf.goals === 'done') goals = goals.filter(i=>i.done);
@@ -835,54 +1016,83 @@ function projectCardHTML(p) {
   const todoItems = todos.map(item => projectItemHTML(item, p.id, 'todos', today)).join('') || '<li class="empty-state" style="padding:8px 14px;font-size:0.8rem;">No to-dos.</li>';
 
   return `<div class="project-card">
-    <div class="project-card-header">
+    <div class="project-card-header" style="background: linear-gradient(135deg, ${color.bg}15 0%, transparent 100%); border-bottom-color: ${color.border};">
       <div class="project-name">${escHtml(p.name)}</div>
-      <div style="display:flex;gap:5px;align-items:center;">
-        <span class="badge">${pct}%</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div class="color-indicator" style="background: ${color.bg};" 
+             title="Click to change color" onclick="openProjectColorModal('${p.id}')"></div>
+        <span class="badge" style="background: ${color.bg}20; border-color: ${color.border}; color: ${color.progress};">${pct}%</span>
         <button class="btn-icon" title="Delete project" onclick="deleteProject('${p.id}')" style="color:var(--accent);">&#10005;</button>
       </div>
     </div>
     <div class="project-progress-wrap">
-      <div class="project-progress"><div class="project-progress-bar" style="width:${pct}%"></div></div>
+      <div class="project-progress"><div class="project-progress-bar" style="background: ${color.progress}; width:${pct}%"></div></div>
       <div class="project-progress-label">${done} / ${total} completed</div>
     </div>
 
-    <!-- Goals sub-section -->
-    <div style="border-bottom:1px solid var(--rule);">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px 6px;gap:6px;flex-wrap:wrap;">
-        <div style="font-family:'Playfair Display',serif;font-size:0.82rem;font-weight:700;letter-spacing:0.05em;">&#9675; Goals <span class="badge" style="font-size:0.62rem;">${totalGoals}</span> <span class="badge done-badge" style="font-size:0.62rem;">${doneGoals}</span></div>
-        <div style="display:flex;gap:4px;">
+    <!-- Goals sub-section - COLLAPSIBLE -->
+    <div class="proj-subsection">
+      <div class="proj-subsection-header" onclick="toggleSubsection(this)">
+        <div class="proj-subsection-title">
+          <span class="collapse-toggle">▼</span>
+          <span>&#9675; Goals</span>
+          <span class="badge" style="font-size:0.62rem;">${totalGoals}</span>
+          <span class="badge done-badge" style="font-size:0.62rem;">${doneGoals}</span>
+        </div>
+        <div class="proj-subsection-controls">
           ${projFilterBtns(p.id,'goals',pf.goals)}
         </div>
       </div>
-      <div style="display:flex;gap:6px;padding:0 14px 8px;flex-wrap:wrap;">
-        <input style="flex:1;min-width:120px;font-family:'Lora',serif;font-size:0.8rem;background:var(--paper);border:1px solid var(--rule);padding:5px 8px;color:var(--ink);border-radius:2px;outline:none;" id="pg-${p.id}" placeholder="Add goal..." onkeydown="if(event.key==='Enter')addProjectItem('${p.id}','goals')">
-        <select style="font-family:'Lora',serif;font-size:0.78rem;background:var(--paper);border:1px solid var(--rule);padding:4px 6px;color:var(--ink);border-radius:2px;" id="pgp-${p.id}">
-          <option value="high">▲ High</option><option value="mid" selected>▶ Med</option><option value="low">▼ Low</option>
-        </select>
-        <button class="btn-add" style="font-size:0.75rem;padding:5px 12px;" onclick="addProjectItem('${p.id}','goals')">+</button>
+      <div class="proj-subsection-content">
+        <div class="proj-subsection-input-group">
+          <input id="pg-${p.id}" placeholder="Add goal..." onkeydown="if(event.key==='Enter')addProjectItem('${p.id}','goals')">
+          <select id="pgp-${p.id}">
+            <option value="high">▲ High</option><option value="mid" selected>▶ Med</option><option value="low">▼ Low</option>
+          </select>
+          <button class="btn-add" style="font-size:0.75rem;padding:5px 12px;" onclick="addProjectItem('${p.id}','goals')">+</button>
+        </div>
+        <ul class="items-list proj-subsection-list">${goalItems}</ul>
       </div>
-      <ul class="items-list">${goalItems}</ul>
     </div>
 
-    <!-- Todos sub-section -->
-    <div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px 6px;gap:6px;flex-wrap:wrap;">
-        <div style="font-family:'Playfair Display',serif;font-size:0.82rem;font-weight:700;letter-spacing:0.05em;">&#9633; To-Dos <span class="badge" style="font-size:0.62rem;">${totalTodos}</span> <span class="badge done-badge" style="font-size:0.62rem;">${doneTodos}</span></div>
-        <div style="display:flex;gap:4px;">
+    <!-- Todos sub-section - COLLAPSIBLE -->
+    <div class="proj-subsection">
+      <div class="proj-subsection-header" onclick="toggleSubsection(this)">
+        <div class="proj-subsection-title">
+          <span class="collapse-toggle">▼</span>
+          <span>&#9633; To-Dos</span>
+          <span class="badge" style="font-size:0.62rem;">${totalTodos}</span>
+          <span class="badge done-badge" style="font-size:0.62rem;">${doneTodos}</span>
+        </div>
+        <div class="proj-subsection-controls">
           ${projFilterBtns(p.id,'todos',pf.todos)}
         </div>
       </div>
-      <div style="display:flex;gap:6px;padding:0 14px 8px;flex-wrap:wrap;">
-        <input style="flex:1;min-width:120px;font-family:'Lora',serif;font-size:0.8rem;background:var(--paper);border:1px solid var(--rule);padding:5px 8px;color:var(--ink);border-radius:2px;outline:none;" id="pt-${p.id}" placeholder="Add to-do..." onkeydown="if(event.key==='Enter')addProjectItem('${p.id}','todos')">
-        <select style="font-family:'Lora',serif;font-size:0.78rem;background:var(--paper);border:1px solid var(--rule);padding:4px 6px;color:var(--ink);border-radius:2px;" id="ptp-${p.id}">
-          <option value="high">▲ High</option><option value="mid" selected>▶ Med</option><option value="low">▼ Low</option>
-        </select>
-        <button class="btn-add" style="font-size:0.75rem;padding:5px 12px;" onclick="addProjectItem('${p.id}','todos')">+</button>
+      <div class="proj-subsection-content">
+        <div class="proj-subsection-input-group">
+          <input id="pt-${p.id}" placeholder="Add to-do..." onkeydown="if(event.key==='Enter')addProjectItem('${p.id}','todos')">
+          <select id="ptp-${p.id}">
+            <option value="high">▲ High</option><option value="mid" selected>▶ Med</option><option value="low">▼ Low</option>
+          </select>
+          <button class="btn-add" style="font-size:0.75rem;padding:5px 12px;" onclick="addProjectItem('${p.id}','todos')">+</button>
+        </div>
+        <ul class="items-list proj-subsection-list">${todoItems}</ul>
       </div>
-      <ul class="items-list">${todoItems}</ul>
     </div>
   </div>`;
+}
+
+// ── COLLAPSIBLE SUBSECTION TOGGLE ──
+function toggleSubsection(header) {
+  const content = header.nextElementSibling;
+  const toggle = header.querySelector('.collapse-toggle');
+  if (content.classList.contains('collapsed')) {
+    content.classList.remove('collapsed');
+    toggle.classList.remove('collapsed');
+  } else {
+    content.classList.add('collapsed');
+    toggle.classList.add('collapsed');
+  }
 }
 
 function projFilterBtns(pid, sub, active) {
@@ -942,6 +1152,8 @@ function deleteProject(pid) {
 }
 
 function openNewProjectModal() {
+  selectedColorIndex = 0;
+  renderColorGrids();
   document.getElementById('newProjectModal').classList.add('open');
   setTimeout(()=>document.getElementById('newProjectName').focus(),50);
 }
@@ -952,10 +1164,34 @@ function closeNewProjectModal() {
 function createProject() {
   const name = document.getElementById('newProjectName').value.trim();
   if (!name) return;
-  data.projects.push({ id: uid(), name, goals: [], todos: [] });
+  data.projects.push({ id: uid(), name, goals: [], todos: [], color: selectedColorIndex });
   closeNewProjectModal();
   save();
   switchTab('projects');
+}
+
+function openProjectColorModal(pid) {
+  const p = data.projects.find(x=>x.id===pid);
+  if (!p) return;
+  currentProjectColorEdit = pid;
+  selectedColorIndex = p.color !== undefined ? p.color : 0;
+  renderColorGrids();
+  document.getElementById('projectColorModal').classList.add('open');
+}
+
+function closeProjectColorModal() {
+  document.getElementById('projectColorModal').classList.remove('open');
+  currentProjectColorEdit = null;
+}
+
+function saveProjectColor() {
+  if (!currentProjectColorEdit) return;
+  const p = data.projects.find(x=>x.id===currentProjectColorEdit);
+  if (p) {
+    p.color = selectedColorIndex;
+    save();
+  }
+  closeProjectColorModal();
 }
 
 // ── SETTINGS / SYNC ──
@@ -1059,6 +1295,7 @@ function escHtml(s) {
 // Close modals on overlay click
 document.getElementById('settingsModal').addEventListener('click', function(e){ if(e.target===this) closeSettings(); });
 document.getElementById('newProjectModal').addEventListener('click', function(e){ if(e.target===this) closeNewProjectModal(); });
+document.getElementById('projectColorModal').addEventListener('click', function(e){ if(e.target===this) closeProjectColorModal(); });
 
 init();
 </script>
