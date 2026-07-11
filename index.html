@@ -529,6 +529,25 @@
     padding: 7px 14px;
   }
 
+  /* ── PROJECT IDEAS (NOTEPAD) ── */
+  .proj-ideas-wrap {
+    padding: 8px 14px 14px;
+  }
+  .proj-ideas-textarea {
+    width: 100%;
+    min-height: 100px;
+    font-family: 'Lora', serif;
+    font-size: 0.85rem;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    padding: 8px;
+    color: var(--ink);
+    border-radius: 2px;
+    resize: vertical;
+    outline: none;
+  }
+  .proj-ideas-textarea:focus { border-color: var(--ink-mid); }
+
   /* ── MODAL ── */
   .modal-overlay {
     display: none;
@@ -668,7 +687,6 @@
     <button class="tab-btn" onclick="switchTab('projects')">&#9675; Projects</button>
   </div>
 
-  <!-- ── DAILY GOALS ── -->
   <div class="tab-panel active" id="tab-daily">
     <div class="section-card" style="border-top:none; border-radius:0 3px 3px 3px;">
       <div class="section-header">
@@ -698,7 +716,6 @@
     </div>
   </div>
 
-  <!-- ── WEEKLY GOALS ── -->
   <div class="tab-panel" id="tab-weekly">
     <div class="section-card" style="border-top:none; border-radius:0 3px 3px 3px;">
       <div class="section-header">
@@ -730,7 +747,6 @@
     </div>
   </div>
 
-  <!-- ── PROJECTS ── -->
   <div class="tab-panel" id="tab-projects">
     <div class="section-card" style="border-top:none; border-radius:0 3px 3px 3px; margin-bottom:0;">
       <div class="section-header">
@@ -745,7 +761,6 @@
   </div>
 </div>
 
-<!-- ── SETTINGS MODAL ── -->
 <div class="modal-overlay" id="settingsModal">
   <div class="modal">
     <h2>&#9881; GitHub Sync Setup</h2>
@@ -763,7 +778,6 @@
   </div>
 </div>
 
-<!-- ── NEW PROJECT MODAL ── -->
 <div class="modal-overlay" id="newProjectModal">
   <div class="modal">
     <h2>&#128190; New Project</h2>
@@ -777,7 +791,6 @@
   </div>
 </div>
 
-<!-- ── PROJECT COLOR EDIT MODAL ── -->
 <div class="modal-overlay" id="projectColorModal">
   <div class="modal">
     <h2>&#128190; Project Color</h2>
@@ -811,7 +824,7 @@ const COLORS = [
 let data = {
   daily: [],
   weekly: [],
-  projects: []   // [{id, name, goals:[], todos:[], color: colorIndex}]
+  projects: []   // [{id, name, goals:[], todos:[], ideas:"", color: colorIndex}]
 };
 let filters = { daily: 'all', weekly: 'all' };
 let projectFilters = {};  // {projectId: {goals:'all', todos:'all'}}
@@ -1014,6 +1027,8 @@ function projectCardHTML(p) {
 
   const goalItems = goals.map(item => projectItemHTML(item, p.id, 'goals', today)).join('') || '<li class="empty-state" style="padding:8px 14px;font-size:0.8rem;">No goals.</li>';
   const todoItems = todos.map(item => projectItemHTML(item, p.id, 'todos', today)).join('') || '<li class="empty-state" style="padding:8px 14px;font-size:0.8rem;">No to-dos.</li>';
+  
+  const ideasText = p.ideas || '';
 
   return `<div class="project-card">
     <div class="project-card-header" style="background: linear-gradient(135deg, ${color.bg}15 0%, transparent 100%); border-bottom-color: ${color.border};">
@@ -1030,7 +1045,6 @@ function projectCardHTML(p) {
       <div class="project-progress-label">${done} / ${total} completed</div>
     </div>
 
-    <!-- Goals sub-section - COLLAPSIBLE -->
     <div class="proj-subsection">
       <div class="proj-subsection-header" onclick="toggleSubsection(this)">
         <div class="proj-subsection-title">
@@ -1055,7 +1069,6 @@ function projectCardHTML(p) {
       </div>
     </div>
 
-    <!-- Todos sub-section - COLLAPSIBLE -->
     <div class="proj-subsection">
       <div class="proj-subsection-header" onclick="toggleSubsection(this)">
         <div class="proj-subsection-title">
@@ -1077,6 +1090,20 @@ function projectCardHTML(p) {
           <button class="btn-add" style="font-size:0.75rem;padding:5px 12px;" onclick="addProjectItem('${p.id}','todos')">+</button>
         </div>
         <ul class="items-list proj-subsection-list">${todoItems}</ul>
+      </div>
+    </div>
+
+    <div class="proj-subsection">
+      <div class="proj-subsection-header" onclick="toggleSubsection(this)">
+        <div class="proj-subsection-title">
+          <span class="collapse-toggle">▼</span>
+          <span>&#9672; Ideas</span>
+        </div>
+      </div>
+      <div class="proj-subsection-content">
+        <div class="proj-ideas-wrap">
+          <textarea class="proj-ideas-textarea" placeholder="Jot down notes, brainstorms, or links here..." onchange="saveProjectIdeas('${p.id}', this.value)">${escHtml(ideasText)}</textarea>
+        </div>
       </div>
     </div>
   </div>`;
@@ -1151,6 +1178,15 @@ function deleteProject(pid) {
   }
 }
 
+// ── SAVE PROJECT IDEAS ──
+function saveProjectIdeas(pid, text) {
+  const p = data.projects.find(x => x.id === pid);
+  if (p && p.ideas !== text) {
+    p.ideas = text;
+    save();
+  }
+}
+
 function openNewProjectModal() {
   selectedColorIndex = 0;
   renderColorGrids();
@@ -1164,7 +1200,7 @@ function closeNewProjectModal() {
 function createProject() {
   const name = document.getElementById('newProjectName').value.trim();
   if (!name) return;
-  data.projects.push({ id: uid(), name, goals: [], todos: [], color: selectedColorIndex });
+  data.projects.push({ id: uid(), name, goals: [], todos: [], ideas: '', color: selectedColorIndex });
   closeNewProjectModal();
   save();
   switchTab('projects');
