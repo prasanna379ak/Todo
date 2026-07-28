@@ -970,11 +970,14 @@ let data = {
 };
 let settings = { token: '', gistId: '' };
 let syncTimer = null;
+let isSyncing = false;
+let hasPendingLocalChanges = false;
 let selectedColorIndex = 0;
 let currentProjectColorEdit = null;
 
 // ── INIT ──
 function init() {
+  checkUrlParamsForSync();
   const saved = localStorage.getItem('planner_data');
   if (saved) {
     try {
@@ -1008,7 +1011,7 @@ function init() {
   renderAll();
   updateSyncStatus('local');
 
-  if (settings.token) pullSync();
+  if (settings.token && settings.gistId) pullSync();
 }
 
 // ── THEME ──
@@ -1025,12 +1028,18 @@ function toggleTheme() {
 }
 
 // ── SAVE & RENDER ──
-function save(triggerSync = true) {
+function save(immediateSync = false) {
   localStorage.setItem('planner_data', JSON.stringify(data));
+  hasPendingLocalChanges = true;
   renderAll();
-  if (triggerSync && settings.token) {
+  
+  if (settings.token) {
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(pushSync, 1500);
+    if (immediateSync) {
+      pushSync();
+    } else {
+      syncTimer = setTimeout(pushSync, 1000);
+    }
   }
 }
 
@@ -1126,25 +1135,25 @@ function addGoal() {
   input.value = '';
   if (noteInput) noteInput.value = '';
   if (dueEl) dueEl.value = '';
-  save();
+  save(true);
 }
 
 function toggleGoal(id) {
   const item = data.goals.find(i => i.id === id);
   if (item) {
     item.done = !item.done;
-    save();
+    save(true);
   }
 }
 
 function deleteGoal(id) {
   data.goals = data.goals.filter(i => i.id !== id);
-  save();
+  save(true);
 }
 
 function clearDoneGoals() {
   data.goals = data.goals.filter(i => !i.done);
-  save();
+  save(true);
 }
 
 function switchTab(name, btn) {
@@ -1246,7 +1255,7 @@ function addProjectTodo(pid) {
   if (p) {
     p.todos = p.todos || [];
     p.todos.push({ id: uid(), text, done: false, created: Date.now() });
-    save();
+    save(true);
   }
 }
 
@@ -1254,7 +1263,7 @@ function toggleProjectTodo(pid, id) {
   const p = data.projects.find(x => x.id === pid);
   if (p && p.todos) {
     const item = p.todos.find(i => i.id === id);
-    if (item) { item.done = !item.done; save(); }
+    if (item) { item.done = !item.done; save(true); }
   }
 }
 
@@ -1262,7 +1271,7 @@ function deleteProjectTodo(pid, id) {
   const p = data.projects.find(x => x.id === pid);
   if (p && p.todos) {
     p.todos = p.todos.filter(i => i.id !== id);
-    save();
+    save(true);
   }
 }
 
@@ -1270,14 +1279,14 @@ function saveProjectNotes(pid, text) {
   const p = data.projects.find(x => x.id === pid);
   if (p && p.ideas !== text) {
     p.ideas = text;
-    save();
+    save(false);
   }
 }
 
 function deleteProject(pid) {
   if (confirm('Delete this project and all its to-dos?')) {
     data.projects = data.projects.filter(p => p.id !== pid);
-    save();
+    save(true);
   }
 }
 
@@ -1327,7 +1336,7 @@ function saveProjectColor() {
     const p = data.projects.find(x => x.id === currentProjectColorEdit);
     if (p) {
       p.color = selectedColorIndex;
-      save();
+      save(true);
     }
   }
   closeModal('projectColorModal');
@@ -1348,7 +1357,7 @@ function createProject() {
 
   nameEl.value = '';
   closeModal('newProjectModal');
-  save();
+  save(true);
   switchTab('projects', document.querySelectorAll('.tab-btn')[1]);
 }
 
@@ -1372,7 +1381,6 @@ function checkUrlParamsForSync() {
         settings.token = token;
         settings.gistId = gistId;
         localStorage.setItem('planner_settings', JSON.stringify(settings));
-        // Clean URL so token is not left exposed in browser address bar
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     } catch(e) {}
@@ -1467,12 +1475,13 @@ function updateSyncStatus(state, msg) {
 }
 
 async function pushSync() {
-  if (!settings.token) return;
+  if (!settings.token || isSyncing) return;
+  isSyncing = true;
   updateSyncStatus('syncing');
   try {
     const payloadData = {
       ...data,
-      __settings: { gistId: settings.gistId } // Embed Gist ID to bind
+      __settings: { gistId: settings.gistId }
     };
     const content = JSON.stringify(payloadData, null, 2);
     const url = settings.gistId ? ('https://api.github.com/gists/' + settings.gistId) : 'https://api.github.com/gists';
@@ -1493,8 +1502,8 @@ async function pushSync() {
 
     if (!res.ok) {
       if (res.status === 404 && settings.gistId) {
-        // Gist deleted or invalid ID, create a new one
         settings.gistId = '';
+        isSyncing = false;
         return pushSync();
       }
       throw new Error('HTTP ' + res.status);
@@ -1504,18 +1513,28 @@ async function pushSync() {
       settings.gistId = json.id;
       localStorage.setItem('planner_settings', JSON.stringify(settings));
     }
+    hasPendingLocalChanges = false;
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     updateSyncStatus('ok', 'at ' + timeStr);
   } catch (e) {
     updateSyncStatus('err', e.message);
+  } finally {
+    isSyncing = false;
   }
 }
 
 async function pullSync() {
-  if (!settings.token || !settings.gistId) {
-    updateSyncStatus('local');
+  if (!settings.token || !settings.gistId || isSyncing) {
+    if (!settings.token) updateSyncStatus('local');
     return;
   }
+  // If user just edited or deleted local items, push local changes first instead of overwriting them with old remote state
+  if (hasPendingLocalChanges) {
+    await pushSync();
+    return;
+  }
+
+  isSyncing = true;
   updateSyncStatus('syncing');
   try {
     const res = await fetch('https://api.github.com/gists/' + settings.gistId, {
@@ -1544,6 +1563,8 @@ async function pullSync() {
     updateSyncStatus('ok', 'at ' + timeStr);
   } catch (e) {
     updateSyncStatus('err', e.message);
+  } finally {
+    isSyncing = false;
   }
 }
 
@@ -1552,8 +1573,11 @@ async function manualSync() {
     openModal('settingsModal');
     return;
   }
-  await pullSync();
-  await pushSync();
+  if (hasPendingLocalChanges) {
+    await pushSync();
+  } else {
+    await pullSync();
+  }
 }
 
 // Auto-sync polling every 30 seconds & auto-pull on tab focus / visibility
@@ -1582,46 +1606,6 @@ function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-
-// Override init to check URL params for auto pairing
-const originalInit = init;
-init = function() {
-  checkUrlParamsForSync();
-  const saved = localStorage.getItem('planner_data');
-  if (saved) {
-    try {
-      const raw = JSON.parse(saved);
-      if (!raw.goals && (raw.daily || raw.weekly)) {
-        data.goals = [...(raw.daily || []), ...(raw.weekly || [])];
-      } else {
-        data.goals = raw.goals || [];
-      }
-      
-      data.projects = (raw.projects || []).map(p => ({
-        id: p.id,
-        name: p.name,
-        color: p.color !== undefined ? p.color : 0,
-        ideas: p.ideas || '',
-        todos: [...(p.todos || []), ...(p.goals || [])]
-      }));
-    } catch(e) {}
-  }
-
-  const s = localStorage.getItem('planner_settings');
-  if (s) try { settings = JSON.parse(s); } catch(e) {}
-
-  const theme = localStorage.getItem('planner_theme') || 'light';
-  applyTheme(theme);
-
-  const options = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
-  document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('en-US', options).toUpperCase();
-
-  renderColorPickers();
-  renderAll();
-  updateSyncStatus('local');
-
-  if (settings.token) pullSync();
-};
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
