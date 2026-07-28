@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Planner — Goals & Projects</title>
 <meta name="description" content="A clean, minimal, and modern planner for tracking goals and project to-dos with notes and cloud sync.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%234f46e5'/><text x='50%' y='54%' dominant-baseline='central' text-anchor='middle' font-size='55' fill='white'>✦</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -901,6 +902,10 @@
       <label>Gist ID (Auto-filled on first sync)</label>
       <input type="text" id="gistIdInput" placeholder="Paste existing Gist ID or leave empty">
     </div>
+    <div style="display:flex; gap:10px; margin-bottom:14px;">
+      <button class="btn-header" style="flex:1; justify-content:center;" onclick="exportSyncCode()">📤 Export Sync Code / Link</button>
+      <button class="btn-header" style="flex:1; justify-content:center;" onclick="importSyncCode()">📥 Import Sync Code / Link</button>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('settingsModal')">Cancel</button>
       <button class="btn-primary" onclick="saveSettings()">Save &amp; Sync</button>
@@ -1347,18 +1352,105 @@ function createProject() {
   switchTab('projects', document.querySelectorAll('.tab-btn')[1]);
 }
 
-// ── GITHUB GIST SYNC ──
+// ── GITHUB GIST SYNC & SETTINGS MANAGEMENT ──
+function getShareableSyncUrl() {
+  if (!settings.token || !settings.gistId) return '';
+  const url = new URL(window.location.href);
+  url.searchParams.set('token', btoa(settings.token));
+  url.searchParams.set('gistId', settings.gistId);
+  return url.toString();
+}
+
+function checkUrlParamsForSync() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const rawToken = urlParams.get('token');
+  const gistId = urlParams.get('gistId');
+  if (rawToken && gistId) {
+    try {
+      const token = atob(rawToken);
+      if (token && gistId) {
+        settings.token = token;
+        settings.gistId = gistId;
+        localStorage.setItem('planner_settings', JSON.stringify(settings));
+        // Clean URL so token is not left exposed in browser address bar
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch(e) {}
+  }
+}
+
+function exportSyncCode() {
+  if (!settings.token || !settings.gistId) {
+    alert('Please save a Personal Access Token first.');
+    return;
+  }
+  const syncPayload = btoa(JSON.stringify(settings));
+  const link = getShareableSyncUrl();
+  
+  const modalBox = document.querySelector('#settingsModal .modal-box');
+  const exportBox = document.getElementById('exportSyncBox') || document.createElement('div');
+  exportBox.id = 'exportSyncBox';
+  exportBox.style.marginTop = '16px';
+  exportBox.style.padding = '14px';
+  exportBox.style.background = 'var(--bg-input)';
+  exportBox.style.borderRadius = 'var(--radius-sm)';
+  exportBox.style.border = '1px solid var(--border-color)';
+  
+  exportBox.innerHTML = `
+    <div style="font-weight:600; font-size:0.85rem; margin-bottom:8px; color:var(--accent);">📱 Sync to another device</div>
+    <div style="font-size:0.8rem; margin-bottom:8px; color:var(--text-secondary);">Option 1: Open this URL on your mobile/PC browser:</div>
+    <input type="text" readonly value="${escHtml(link)}" style="width:100%; font-size:0.75rem; padding:6px; margin-bottom:8px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:4px;" onclick="this.select(); document.execCommand('copy'); alert('Link copied to clipboard!');">
+    <div style="font-size:0.8rem; margin-bottom:8px; color:var(--text-secondary);">Option 2: Copy this Sync Code & Paste it into "Import Sync Code" on mobile:</div>
+    <input type="text" readonly value="${escHtml(syncPayload)}" style="width:100%; font-size:0.75rem; padding:6px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:4px;" onclick="this.select(); document.execCommand('copy'); alert('Sync Code copied!');">
+  `;
+  if (!document.getElementById('exportSyncBox')) {
+    modalBox.appendChild(exportBox);
+  }
+}
+
+function importSyncCode() {
+  const code = prompt('Paste the Sync Code or Sync Link from your primary device:');
+  if (!code) return;
+  try {
+    let importedSettings = null;
+    if (code.includes('token=') && code.includes('gistId=')) {
+      const url = new URL(code);
+      const rawToken = url.searchParams.get('token');
+      const gistId = url.searchParams.get('gistId');
+      if (rawToken && gistId) {
+        importedSettings = { token: atob(rawToken), gistId };
+      }
+    } else {
+      importedSettings = JSON.parse(atob(code.trim()));
+    }
+
+    if (importedSettings && importedSettings.token && importedSettings.gistId) {
+      settings = importedSettings;
+      localStorage.setItem('planner_settings', JSON.stringify(settings));
+      document.getElementById('tokenInput').value = settings.token;
+      document.getElementById('gistIdInput').value = settings.gistId;
+      alert('Sync code imported successfully! Pulling data now...');
+      pullSync();
+    } else {
+      alert('Invalid sync code format.');
+    }
+  } catch(e) {
+    alert('Failed to parse sync code: ' + e.message);
+  }
+}
+
 function saveSettings() {
   settings.token = document.getElementById('tokenInput').value.trim();
   settings.gistId = document.getElementById('gistIdInput').value.trim();
   localStorage.setItem('planner_settings', JSON.stringify(settings));
   closeModal('settingsModal');
-  if (settings.token) pushSync();
+  if (settings.token) pullSync().then(() => pushSync());
 }
 
 function updateSyncStatus(state, msg) {
   const badge = document.getElementById('syncStatus');
   const text = document.getElementById('syncText');
+  if (!badge || !text) return;
   badge.className = 'sync-badge';
 
   if (state === 'ok') {
@@ -1378,7 +1470,11 @@ async function pushSync() {
   if (!settings.token) return;
   updateSyncStatus('syncing');
   try {
-    const content = JSON.stringify(data, null, 2);
+    const payloadData = {
+      ...data,
+      __settings: { gistId: settings.gistId } // Embed Gist ID to bind
+    };
+    const content = JSON.stringify(payloadData, null, 2);
     const url = settings.gistId ? ('https://api.github.com/gists/' + settings.gistId) : 'https://api.github.com/gists';
     const method = settings.gistId ? 'PATCH' : 'POST';
 
@@ -1395,7 +1491,14 @@ async function pushSync() {
       })
     });
 
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      if (res.status === 404 && settings.gistId) {
+        // Gist deleted or invalid ID, create a new one
+        settings.gistId = '';
+        return pushSync();
+      }
+      throw new Error('HTTP ' + res.status);
+    }
     const json = await res.json();
     if (!settings.gistId) {
       settings.gistId = json.id;
@@ -1418,7 +1521,10 @@ async function pullSync() {
     const res = await fetch('https://api.github.com/gists/' + settings.gistId, {
       headers: { 'Authorization': 'token ' + settings.token }
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      if (res.status === 404) throw new Error('Gist not found. Check Gist ID.');
+      throw new Error('HTTP ' + res.status);
+    }
     const json = await res.json();
     const content = json.files['planner_data.json']?.content;
     if (content) {
@@ -1450,6 +1556,24 @@ async function manualSync() {
   await pushSync();
 }
 
+// Auto-sync polling every 30 seconds & auto-pull on tab focus / visibility
+setInterval(() => {
+  if (settings.token && settings.gistId) {
+    pullSync();
+  }
+}, 30000);
+
+window.addEventListener('focus', () => {
+  if (settings.token && settings.gistId) {
+    pullSync();
+  }
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && settings.token && settings.gistId) {
+    pullSync();
+  }
+});
+
 // ── UTILS ──
 function uid() {
   return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -1458,6 +1582,46 @@ function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// Override init to check URL params for auto pairing
+const originalInit = init;
+init = function() {
+  checkUrlParamsForSync();
+  const saved = localStorage.getItem('planner_data');
+  if (saved) {
+    try {
+      const raw = JSON.parse(saved);
+      if (!raw.goals && (raw.daily || raw.weekly)) {
+        data.goals = [...(raw.daily || []), ...(raw.weekly || [])];
+      } else {
+        data.goals = raw.goals || [];
+      }
+      
+      data.projects = (raw.projects || []).map(p => ({
+        id: p.id,
+        name: p.name,
+        color: p.color !== undefined ? p.color : 0,
+        ideas: p.ideas || '',
+        todos: [...(p.todos || []), ...(p.goals || [])]
+      }));
+    } catch(e) {}
+  }
+
+  const s = localStorage.getItem('planner_settings');
+  if (s) try { settings = JSON.parse(s); } catch(e) {}
+
+  const theme = localStorage.getItem('planner_theme') || 'light';
+  applyTheme(theme);
+
+  const options = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
+  document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('en-US', options).toUpperCase();
+
+  renderColorPickers();
+  renderAll();
+  updateSyncStatus('local');
+
+  if (settings.token) pullSync();
+};
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
